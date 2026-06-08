@@ -1,0 +1,20 @@
+# Logrotate policy for activity_scanner role
+# Manages the remote activity report and the audit events log.
+
+/var/log/dev_activity_report.txt {
+    monthly
+    rotate 12
+    compress
+    missingok
+    notifempty
+    create 0640 root audit
+}
+
+/var/log/dev_audit_events.log {
+    monthly
+    rotate 6
+    compress
+    missingok
+    notifempty
+    create 0640 root audit
+}

@@ -1,0 +1,20 @@
+# Ansible vault password file — never commit
+.vault_pass
+
+# Fetched reports — local outputs
+reports/
+
+# Ansible retry files
+*.retry
+
+# Python
+__pycache__/
+*.py[cod]
+
+# macOS
+.DS_Store
+
+# Editor
+.idea/
+.vscode/
+*.swp

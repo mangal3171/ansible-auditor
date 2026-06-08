@@ -1,0 +1,17 @@
+---
+# =============================================================================
+# roles/activity_scanner/defaults/settings.yml
+# Lowest-priority defaults; callers override via group_vars or playbook vars.
+# =============================================================================
+
+projects_base_dir:        /opt/dev/projects
+audit_target_users:       ['blob', 'alice']
+modification_window_days: 7
+report_remote_path:       /var/log/dev_activity_report.txt
+report_owner:             root
+report_group:             audit
+report_permissions:       "0640"
+local_report_dest:        "{{ playbook_dir }}/reports"
+find_file_types:
+  - f
+include_hidden_files: false

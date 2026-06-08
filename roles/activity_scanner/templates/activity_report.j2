@@ -1,0 +1,90 @@
+{# =============================================================================
+   activity_report.j2 — Developer Activity Audit Report Template
+
+   ============================================================================= #}
+{%- set active_devs   = [] -%}
+{%- set inactive_devs = [] -%}
+================================================================================
+  DEVELOPER ACTIVITY AUDIT REPORT
+================================================================================
+  Generated  : {{ report_timestamp }}
+  Host       : {{ inventory_hostname }} ({{ ansible_default_ipv4.address | default('N/A') }})
+  Scope      : {{ projects_base_dir }}
+  Window     : Files modified in the last {{ modification_window_days }} day(s)
+  Run by     : {{ ansible_user_id | default('ansible') }}
+  Report     : {{ report_remote_path }}
+  Access     : {{ report_owner }} + '{{ report_group }}' group (mode {{ report_permissions }})
+================================================================================
+
+{% if scoped_dirs | length == 0 %}
+  [INFO] No developer directories to audit under {{ projects_base_dir }}.
+
+{% else %}
+{%- set total_active   = namespace(count=0) -%}
+{%- set total_inactive = namespace(count=0) -%}
+{%- set total_files    = namespace(count=0) -%}
+
+{% for dir in scoped_dirs | sort(attribute='path') %}
+--------------------------------------------------------------------------------
+  DEVELOPER : {{ dir.path | basename | upper }}
+  PATH      : {{ dir.path }}
+--------------------------------------------------------------------------------
+{# Collect recently modified files belonging to this developer's directory #}
+{%- set ns = namespace(dir_files=[]) -%}
+{%- for f in recent_files.files -%}
+{%- if f.path.startswith(dir.path + '/') or f.path == dir.path -%}
+{%- set ns.dir_files = ns.dir_files + [f] -%}
+{%- endif -%}
+{%- endfor -%}
+
+{% if ns.dir_files | length == 0 %}
+  STATUS    : INACTIVE — no files modified in the last {{ modification_window_days }} day(s)
+{%- set total_inactive.count = total_inactive.count + 1 %}
+{%- set sorted = [] %}
+{# Find the latest known file (any age) for the inactive dev #}
+{%- set all_ns = namespace(all_files=[]) -%}
+{%- for f in recent_files.files if f.path.startswith(dir.path + '/') -%}
+{%- set all_ns.all_files = all_ns.all_files + [f] -%}
+{%- endfor -%}
+{% if all_ns.all_files | length > 0 %}
+  LAST SEEN : {{ (all_ns.all_files | sort(attribute='mtime', reverse=True) | first).mtime | int | strftime('%Y-%m-%d %H:%M:%S UTC') }}
+{% else %}
+  LAST SEEN : No files found in directory
+{% endif %}
+
+{% else %}
+{%- set total_active.count = total_active.count + 1 -%}
+{%- set total_files.count  = total_files.count + (ns.dir_files | length) -%}
+{%- set sorted_files = ns.dir_files | sort(attribute='mtime', reverse=True) -%}
+{%- set newest = sorted_files | first -%}
+  STATUS    : ACTIVE
+  LATEST    : {{ newest.mtime | int | strftime('%Y-%m-%d %H:%M:%S UTC') }}
+  FILE      : {{ newest.path }}
+  CHANGES   : {{ ns.dir_files | length }} file(s) modified in last {{ modification_window_days }} day(s)
+
+  Modified Files (newest first):
+{% for f in sorted_files %}
+    {{ f.mtime | int | strftime('%Y-%m-%d %H:%M:%S') }}  {{ f.path }}  [{{ f.size | human_readable }}]
+{% endfor %}
+{% endif %}
+
+{% endfor %}
+{% endif %}
+================================================================================
+  SUMMARY
+================================================================================
+  Total developers   : {{ scoped_dirs | length }}
+  Active  (< {{ modification_window_days }}d) : {{ total_active.count }}
+  Inactive           : {{ total_inactive.count }}
+  Total files found  : {{ total_files.count }}
+{% if scoped_dirs | length > 0 %}
+  Activity rate      : {{ ((total_active.count / scoped_dirs | length) * 100) | round(1) }}%
+{% endif %}
+================================================================================
+  CONFIDENTIALITY NOTICE
+  This report reveals information about individual developer work patterns.
+  Access is restricted to {{ report_owner }} and members of the '{{ report_group }}'
+  group on {{ ansible_hostname }}.  Handle accordingly.
+================================================================================
+  END OF REPORT
+================================================================================

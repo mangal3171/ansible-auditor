@@ -1,0 +1,8 @@
+---
+# =============================================================================
+# roles/activity_scanner/vars/internals.yml
+# Role-internal vars (higher priority than defaults; callers must not override).
+# =============================================================================
+
+# Append-only log of every report generation event on the remote host
+_audit_events_log: /var/log/dev_audit_events.log

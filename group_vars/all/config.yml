@@ -1,0 +1,30 @@
+---
+# =============================================================================
+# group_vars/all/config.yml — Non-sensitive configuration
+# Secrets live in group_vars/all/secrets.yml (ansible-vault encrypted)
+# =============================================================================
+
+# ── Target users ──────────────────────────────────────────────────────────────
+# Specific users to audit; set to [] to scan every subdirectory under projects_base_dir
+audit_target_users: []
+
+# ── Paths ─────────────────────────────────────────────────────────────────────
+projects_base_dir:      /opt/dev/projects
+report_remote_path:     /var/log/dev_activity_report.txt
+local_report_dest:      "{{ playbook_dir }}/reports"
+
+# ── Activity window ───────────────────────────────────────────────────────────
+# Days without file changes before a directory is marked inactive
+modification_window_days: 7
+
+# ── Find behaviour (adopted from ansible-dev-audit reference) ─────────────────
+# Add 'l' to include symlinks, 'd' to include subdirectory entries
+find_file_types:
+  - f
+include_hidden_files: false   # Set true to scan dotfiles / .git etc.
+
+# ── Report file permissions ───────────────────────────────────────────────────
+report_owner: root
+report_group: audit
+# 0640 quoted — unquoted 0640 becomes an integer in YAML
+report_permissions: "0640"

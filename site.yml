@@ -1,0 +1,20 @@
+---
+# =============================================================================
+# site.yml — Top-level entry point for the Developer Activity Auditor
+# Usage: ansible-playbook site.yml
+#        ansible-playbook site.yml --tags preflight
+#        ansible-playbook site.yml --tags report
+# =============================================================================
+
+- name: Developer Activity Audit
+  hosts: dev_servers
+  gather_facts: true
+  gather_subset:
+    - network
+    - date_time          # Limit collection — skip hardware/virtual facts
+  become: false
+
+  roles:
+    - role: activity_scanner
+      tags:
+        - audit

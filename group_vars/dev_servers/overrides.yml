@@ -1,0 +1,7 @@
+---
+# =============================================================================
+# group_vars/dev_servers/overrides.yml — Group-specific (non-secret) vars
+# =============================================================================
+
+# Sudo password sourced from vault — only needed if ansible user lacks NOPASSWD
+ansible_become_password: "{{ vault_ansible_become_pass }}"

@@ -1,0 +1,203 @@
+---
+# =============================================================================
+# roles/activity_scanner/tasks/execute.yml
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# PHASE 0: Control-node setup (runs once regardless of host count)
+# -----------------------------------------------------------------------------
+
+- name: Ensure local report destination directory exists
+  ansible.builtin.file:
+    path: "{{ local_report_dest }}"
+    state: directory
+    mode: "0750"
+  delegate_to: localhost
+  run_once: true
+  become: false
+  tags:
+    - audit
+    - setup
+
+# -----------------------------------------------------------------------------
+# PHASE 1: Pre-flight — validate environment
+# -----------------------------------------------------------------------------
+
+- name: Assert Python 3 is the active interpreter
+  ansible.builtin.assert:
+    that:
+      - ansible_python_version is version('3.0', '>=')
+    fail_msg: >-
+      Python 3 is required but the active interpreter is Python {{ ansible_python_version }}.
+      Install Python 3 on the target: yum install python3
+      Then set: ansible_python_interpreter=/usr/bin/python3
+    success_msg: "Python {{ ansible_python_version }} confirmed."
+  tags:
+    - audit
+    - preflight
+
+- name: Assert target OS is CentOS 7
+  ansible.builtin.assert:
+    that:
+      - ansible_distribution == "CentOS"
+      - ansible_distribution_major_version | int == 7
+    fail_msg: >-
+      This role requires CentOS 7.
+      Detected: {{ ansible_distribution }} {{ ansible_distribution_version }}
+    success_msg: >-
+      OS check passed: {{ ansible_distribution }} {{ ansible_distribution_version }}
+  tags:
+    - audit
+    - preflight
+
+# -----------------------------------------------------------------------------
+# PHASE 2: Setup — audit group, logrotate
+# -----------------------------------------------------------------------------
+
+- name: Ensure audit group exists on remote host
+  ansible.builtin.group:
+    name: "{{ report_group }}"
+    state: present
+    system: true
+  become: true
+  tags:
+    - audit
+    - setup
+
+- name: Deploy logrotate config for report and events log
+  ansible.builtin.copy:
+    src: logrotate_policy
+    dest: /etc/logrotate.d/dev_activity_audit
+    owner: root
+    group: root
+    mode: "0644"
+  become: true
+  tags:
+    - audit
+    - setup
+
+# -----------------------------------------------------------------------------
+# PHASE 3: Discover developer directories
+# -----------------------------------------------------------------------------
+
+- name: Discover immediate subdirectories under projects base
+  ansible.builtin.find:
+    paths: "{{ projects_base_dir }}"
+    file_type: directory
+    recurse: false
+  register: project_subdirs
+  become: true
+  tags:
+    - audit
+    - discover
+
+- name: Abort gracefully if base directory is missing or empty
+  ansible.builtin.assert:
+    that:
+      - project_subdirs is not failed
+      - project_subdirs.files | length > 0
+    fail_msg: >-
+      No subdirectories found under {{ projects_base_dir }} on {{ inventory_hostname }}.
+      Verify the path exists and contains developer project subdirectories.
+    success_msg: >-
+      Base directory accessible. Found {{ project_subdirs.files | length }} developer subdirectory(ies).
+  tags:
+    - audit
+    - discover
+
+- name: Filter subdirectories to target users (empty list = scan all)
+  ansible.builtin.set_fact:
+    scoped_dirs: >-
+      {{ project_subdirs.files | sort(attribute='path') |
+         selectattr('path', 'search', '/(' + audit_target_users | join('|') + ')$') | list
+         if audit_target_users | length > 0
+         else project_subdirs.files | sort(attribute='path') }}
+  tags:
+    - audit
+    - discover
+
+# -----------------------------------------------------------------------------
+# PHASE 4: Collect file modification data (ansible-native, no shell find)
+# -----------------------------------------------------------------------------
+
+- name: Find files modified within the last {{ modification_window_days }} day(s)
+  ansible.builtin.find:
+    paths: "{{ projects_base_dir }}"
+    file_type: "{{ item }}"
+    recurse: true
+    age: "-{{ modification_window_days }}d"
+    age_stamp: mtime
+    get_checksum: false
+    hidden: "{{ include_hidden_files }}"
+  loop: "{{ find_file_types }}"
+  register: recent_files_raw
+  become: true
+  changed_when: false
+  tags:
+    - audit
+    - collect
+
+- name: Flatten and deduplicate multi-type find results
+  ansible.builtin.set_fact:
+    recent_files:
+      files: >-
+        {{
+          recent_files_raw.results
+          | map(attribute='files')
+          | flatten
+          | unique(attribute='path')
+        }}
+  tags:
+    - audit
+    - collect
+
+# -----------------------------------------------------------------------------
+# PHASE 5: Capture timestamp and render report
+# -----------------------------------------------------------------------------
+
+- name: Capture report generation timestamp
+  ansible.builtin.set_fact:
+    report_timestamp: "{{ ansible_date_time.iso8601 }}"
+  tags:
+    - audit
+    - report
+
+- name: Render and write developer activity report on remote host
+  ansible.builtin.template:
+    src: activity_report.j2
+    dest: "{{ report_remote_path }}"
+    owner: "{{ report_owner }}"
+    group: "{{ report_group }}"
+    mode: "{{ report_permissions }}"
+    backup: true
+  become: true
+  notify: Record report event in audit log
+  tags:
+    - audit
+    - report
+
+# -----------------------------------------------------------------------------
+# PHASE 6: Fetch report to control node
+# -----------------------------------------------------------------------------
+
+- name: Fetch report to control node
+  ansible.builtin.fetch:
+    src: "{{ report_remote_path }}"
+    dest: "{{ local_report_dest }}/{{ inventory_hostname }}_dev_activity_{{ ansible_date_time.date }}.txt"
+    flat: true
+    validate_checksum: true
+  become: true
+  tags:
+    - audit
+    - report
+
+- name: Confirm report locations
+  ansible.builtin.debug:
+    msg:
+      - "Remote : {{ report_remote_path }}"
+      - "Local  : {{ local_report_dest }}/{{ inventory_hostname }}_dev_activity_{{ ansible_date_time.date }}.txt"
+  delegate_to: localhost
+  become: false
+  tags:
+    - audit
+    - report

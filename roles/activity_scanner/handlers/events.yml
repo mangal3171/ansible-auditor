@@ -1,0 +1,14 @@
+---
+# =============================================================================
+# roles/activity_scanner/handlers/events.yml
+# =============================================================================
+
+- name: Record report event in audit log
+  ansible.builtin.lineinfile:
+    path: "{{ _audit_events_log }}"
+    line: "{{ ansible_date_time.iso8601 }} | {{ inventory_hostname }} | activity_scanner report updated"
+    create: true
+    owner: root
+    group: "{{ report_group }}"
+    mode: "0640"
+  become: true
