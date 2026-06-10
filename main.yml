@@ -1,6 +1,6 @@
 ---
 # =============================================================================
-# site.yml — Top-level entry point for the Developer Activity Auditor
+# main.yml — Top-level entry point for the Developer Activity Auditor
 # Usage: ansible-playbook site.yml
 #        ansible-playbook site.yml --tags preflight
 #        ansible-playbook site.yml --tags report
