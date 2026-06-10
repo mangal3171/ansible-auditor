@@ -33,19 +33,19 @@ The files `group_vars/all/secrets.yml` and `group_vars/dev_servers/group_secrets
 
 ```bash
 # Full audit run
-ansible-playbook site.yml
+ansible-playbook main.yml
 
 # Pre-flight checks only (OS + Python assertions)
-ansible-playbook site.yml --tags preflight
+ansible-playbook main.yml --tags preflight
 
 # Re-render and fetch the report without re-running discovery
-ansible-playbook site.yml --tags report
+ansible-playbook main.yml --tags report
 
 # Dry run (check mode)
-ansible-playbook site.yml --check
+ansible-playbook main.yml --check
 
 # Prompt for vault password at runtime instead of using a file
-ansible-playbook site.yml --ask-vault-pass
+ansible-playbook main.yml --ask-vault-pass
 ```
 
 Reports are fetched to `./reports/<hostname>_dev_activity_<date>.txt` on the control node. The remote copy lives at `/var/log/dev_activity_report.txt`.
